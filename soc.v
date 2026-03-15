@@ -2,10 +2,16 @@ module soc(
     input clk,
     input rst
 );
-    wire [31:0] cpu_instr = 32'h0;
+    wire [31:0] cpu_pc;
+    wire [31:0] cpu_instr;
     wire [31:0] cpu_addr;
     wire [31:0] cpu_wdata;
     wire cpu_we;
+    rom rom_inst(
+        .clk(clk),
+        .addr(cpu_pc[11:2]),
+        .rdata(cpu_instr)
+    );
     cpu cpu_inst(
         .clk(clk),
         .rst(rst),
@@ -14,10 +20,11 @@ module soc(
         .addr(cpu_addr),
         .wdata(cpu_wdata),
         .we(cpu_we),
-        .pc()
+        .pc(cpu_pc)
     );
     wire ram_sel = cpu_addr < 32'h00008000;
-    wire aes_sel = cpu_addr >= 32'h00008000;
+    wire aes_sel = cpu_addr >= 32'h00008000 && cpu_addr < 32'h00009000;
+    wire uart_sel = cpu_addr >= 32'h00009000 && cpu_addr < 32'h00009010;
     wire [31:0] ram_rdata;
     ram ram_inst(
         .clk(clk),
@@ -90,5 +97,14 @@ module soc(
         else if (result_region)
             aes_rdata = result_reg[result_word * 32 +: 32];
     end
-    wire [31:0] bus_rdata = ram_sel ? ram_rdata : (aes_sel ? aes_rdata : 32'h0);
+    wire [31:0] uart_rdata;
+    uart uart_inst(
+        .clk(clk),
+        .rst(rst),
+        .addr(cpu_addr),
+        .wdata(cpu_wdata),
+        .we(uart_sel & cpu_we),
+        .rdata(uart_rdata)
+    );
+    wire [31:0] bus_rdata = ram_sel ? ram_rdata : (aes_sel ? aes_rdata : (uart_sel ? uart_rdata : 32'h0));
 endmodule
